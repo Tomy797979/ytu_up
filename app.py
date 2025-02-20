@@ -1,8 +1,7 @@
-﻿import streamlit as st
+import streamlit as st
 import os
-import pickle
 import json
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
@@ -11,7 +10,7 @@ SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
 
 # Hàm tạo client_secrets từ Streamlit Secrets
 def get_client_secrets():
-    client_secrets = {
+    return {
         "installed": {
             "client_id": st.secrets["google_oauth"]["client_id"],
             "client_secret": st.secrets["google_oauth"]["client_secret"],
@@ -21,20 +20,25 @@ def get_client_secrets():
             "redirect_uris": [st.secrets["google_oauth"]["redirect_uris"]]
         }
     }
-    return client_secrets
 
-# Hàm xác thực
+# Hàm xác thực sử dụng token.json
 def get_authenticated_service():
-    credentials = None
-    if os.path.exists("token.pickle"):
-        with open("token.pickle", "rb") as token:
-            credentials = pickle.load(token)
-    if not credentials or not credentials.valid:
-        client_secrets = get_client_secrets()
-        flow = InstalledAppFlow.from_client_config(client_secrets, SCOPES)
-        st.warning("Vui lòng chạy xác thực cục bộ lần đầu để tạo token.pickle!")
-        return None
-    return build("youtube", "v3", credentials=credentials)
+    if os.path.exists("token.json"):
+        with open("token.json", "r") as token_file:
+            token_data = json.load(token_file)
+        credentials = Credentials(
+            token=token_data["token"],
+            refresh_token=token_data["refresh_token"],
+            token_uri=token_data["token_uri"],
+            client_id=token_data["client_id"],
+            client_secret=token_data["client_secret"],
+            scopes=token_data["scopes"]
+        )
+        if credentials.expired and credentials.refresh_token:
+            credentials.refresh()
+        return build("youtube", "v3", credentials=credentials)
+    st.error("Không tìm thấy token.json trong repository!")
+    return None
 
 # Hàm upload video
 def upload_video(youtube, video_path, title, description, tags, category_id="22"):
@@ -46,7 +50,7 @@ def upload_video(youtube, video_path, title, description, tags, category_id="22"
             "categoryId": category_id
         },
         "status": {
-            "privacyStatus": "public"
+            "privacyStatus": "public"  # Có thể đổi thành "private" hoặc "unlisted"
         }
     }
     media = MediaFileUpload(video_path)
@@ -64,6 +68,7 @@ category_id = st.selectbox("Danh mục", ["22"], help="22 là People & Blogs")
 
 if st.button("Upload"):
     if video_file and title and description and tags:
+        # Lưu file video tạm thời
         with open("temp_video.mp4", "wb") as f:
             f.write(video_file.read())
         
@@ -73,8 +78,8 @@ if st.button("Upload"):
                 video_id = upload_video(youtube, "temp_video.mp4", title, description, tags)
                 st.success(f"Video uploaded! ID: {video_id}")
             except Exception as e:
-                st.error(f"Lỗi: {str(e)}")
+                st.error(f"Lỗi khi upload: {str(e)}")
         else:
-            st.error("Không thể xác thực API. Kiểm tra token.pickle!")
+            st.error("Không thể xác thực API. Kiểm tra token.json!")
     else:
         st.error("Vui lòng điền đầy đủ thông tin!")
