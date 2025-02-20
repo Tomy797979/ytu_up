@@ -87,7 +87,7 @@ def check_password():
     if not st.session_state.authenticated:
         password = st.text_input("Nhập mật khẩu", type="password")
         if st.button("Xác nhận"):
-            if password == "YOUR_PASSWORD":  # Thay bằng mật khẩu của bạn
+            if password == "Lucky$#money$$$":  # Thay bằng mật khẩu của bạn
                 st.session_state.authenticated = True
                 st.success("Đăng nhập thành công!")
             else:
